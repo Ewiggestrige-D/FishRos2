@@ -127,7 +127,8 @@
             <frame_name>camera_optical_link</frame_name>
         </plugin>
         <always_on>true</always_on>
-        <update_rate>10</update_rate>
+        <!-- 原10 -->
+        <update_rate>100</update_rate>
         <camera name="camera">
             <!-- 水平视角的fov配置 -->
             <horizontal_fov>1.5009831567</horizontal_fov>

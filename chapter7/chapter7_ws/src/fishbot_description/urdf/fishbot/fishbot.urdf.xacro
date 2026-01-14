@@ -25,8 +25,8 @@
 <xacro:wheel_xacro  wheel_name = "left_wheel" xyz = "0 0.10 -0.06" />
 <xacro:wheel_xacro  wheel_name = "right_wheel" xyz = "0 -0.10 -0.06" />
 
-<xacro:caster_xacro  caster_name = "front_caster" xyz = "0.08 0 -0.06" />
-<xacro:caster_xacro  caster_name = "back_caster" xyz = "-0.08 0 -0.06" />
+<xacro:caster_xacro  caster_name = "front_caster" xyz = "0.08 0 -0.076" />
+<xacro:caster_xacro  caster_name = "back_caster" xyz = "-0.08 0 -0.076" />
 
 <!-- <xacro:gazebo_control_plugin /> -->
 <!-- 防止ros2_control插件和gazebo插件控制两轮差速硬件冲突，因此注释掉gazebo_control 插件 -->

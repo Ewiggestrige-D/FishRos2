@@ -1,21 +1,24 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
+<!-- 引入对应转动惯量矩阵的宏文件 -->
 <xacro:include filename="$(find fishbot_description)/urdf/fishbot/common_inertia.xacro"/>
-    <xacro:macro name="caster_xacro" params="caster_name xyz">
-        <!-- 机器人的IMU（Inertial Measurement Unit）部件，惯性测量单元 -->
-        <link name="${caster_name}_link">
+    <xacro:macro name="base_xacro" params="length radius">
+        <link name="base_footprint" />
+        <!-- 机器人的身体部分 -->
+        <link name="base_link">
             <!-- 部件的外观描述 -->
             <visual>
                 <!-- 沿着自己的几何中心的偏移和旋转 -->
                 <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
                 <!-- 几何形状 -->
                 <geometry>
-                    <sphere radius="0.016"/>
+                    <!-- 单位是m -->
+                    <cylinder radius="${radius}" length="${length}"/>
                 </geometry>
                 <!-- 材质颜色 -->
-                <material name = "yellow">
+                <material name = "white">
                     <!-- rgb表示红绿蓝，范围为0～1，a表示透明度 -->
-                    <color rgba="1.0 1.0 0.0 0.8"/>
+                    <color rgba="1.0 1.0 1.0 0.5"/>
                 </material>
             </visual>
             <collision>
@@ -23,23 +26,23 @@
                 <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
                 <!-- 几何形状 -->
                 <geometry>
-                    <sphere radius="0.016"/>
+                    <!-- 单位是m -->
+                    <cylinder radius="${radius}" length="${length}"/>
                 </geometry>
                 <!-- 材质颜色 -->
-                <material name = "yellow">
+                <material name = "white">
                     <!-- rgb表示红绿蓝，范围为0～1，a表示透明度 -->
-                    <color rgba="1.0 1.0 0.0 0.8"/>
+                    <color rgba="1.0 1.0 1.0 0.5"/>
                 </material>
             </collision>
 
-            <xacro:sphere_inertia m ="0.05" r="0.016" />
+            <xacro:cylinder_inertia m ="1.0" r="${radius}" h="${length}" />
         </link>
 
-        <!-- 机器人的关节 Joint，用于组合机器人的部件 -->
-        <joint name="${caster_name}_joint" type="fixed">
-            <origin xyz="${xyz}" rpy="0.0 0.0 0.0"/>
-            <parent link="base_link"/>
-            <child link="${caster_name}_link"/>
+        <joint name="joint_name" type="fixed">
+            <origin xyz="0.0 0.0 ${length/2.0 +0.03205}" rpy="0.0 0.0 0.0"/>
+            <parent link="base_footprint"/>
+            <child link="base_link"/>
         </joint>
     </xacro:macro>
 </robot>
