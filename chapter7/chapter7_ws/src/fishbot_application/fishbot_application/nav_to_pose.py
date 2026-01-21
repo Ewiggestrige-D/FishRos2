@@ -27,7 +27,7 @@ def main():
     nav = BasicNavigator()
 
     # 等待 Nav2 全套系统就绪（包括 costmap、planner、controller 等）
-    nav.waitUntilNav2Active()  # 设置最大等待时间
+    nav.waitUntilNav2Active()
 
     # 设置目标点
     goal_pose = PoseStamped()
