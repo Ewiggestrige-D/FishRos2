@@ -12,7 +12,7 @@ FishRos2 7.5.1 机器人系统架构设计
 
 
 FishRos2 7.5.2 编写巡检控制节点
-核心需求: 1. 直接继承上一小节navigator和之前tf变换的代码实现小车的自动巡检和到位之后的消息播报
+核心需求: 1. 直接继承上一小节navigator和之前tf变换的代码实现小车的自动巡检
 
 """
 
@@ -164,7 +164,7 @@ class PatrolNode(BasicNavigator):
         self.target_points_ = self.get_parameter('target_points').value
         
         if len(self.target_points_) % 3 != 0:
-            self.get_logger().error("targets_point must have 3-values [x, y, yaw]")
+            self.get_logger().error("targets point must have a 3-value tuple [x, y, yaw]")
             return False
         
         points =[]
