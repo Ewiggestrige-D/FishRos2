@@ -7,8 +7,7 @@ FishRos2 7.5.2 编写巡检控制节点_优化
 4. 非阻塞式导航 + spin_once
 5. 完善异常处理与资源清理
 6. 标准化 Docstring 和日志
-7.预留扩展接口（如 on_waypoint_reached）
-
+7. 预留扩展接口（如 on_waypoint_reached）
 """
 
 import rclpy
