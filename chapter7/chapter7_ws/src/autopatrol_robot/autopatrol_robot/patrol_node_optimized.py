@@ -8,6 +8,13 @@ FishRos2 7.5.2 编写巡检控制节点_优化
 5. 完善异常处理与资源清理
 6. 标准化 Docstring 和日志
 7. 预留扩展接口（如 on_waypoint_reached）
+
+
+核心需求：1. 替换 spin_until_future_complete → spin_once 轮询
+2. 添加统一超时机制
+3. 使用 ~/speech_text 自动适配命名空间
+4. 返回布尔值供上层逻辑判断
+5. 移除阻塞式 while 循环
 """
 
 import rclpy
@@ -19,7 +26,7 @@ from tf_transformations import euler_from_quaternion
 
 # 导入独立工具函数
 from autopatrol_robot.utils.pose_utils import get_pose_stamped
-
+from autopatrol_interfaces.srv import SpeechText
 
 class PatrolNode(BasicNavigator):
     def __init__(self, node_name='patrol_robot', namespace=''):
@@ -43,6 +50,10 @@ class PatrolNode(BasicNavigator):
         # 初始化 TF 监听器
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
+        
+        # 自动适配命名空间的服务名
+        # ROS 2 支持相对服务名，自动拼接 namespace
+        self.speech_client_ = self.create_client(SpeechText, '~/speech_text')
 
     def init_robot_pose(self):
         """从参数读取初始位姿并设置给 AMCL。"""
@@ -131,17 +142,68 @@ class PatrolNode(BasicNavigator):
             self.get_logger().warn(f"Failed to get current pose: {e}")
             return None, None
 
-    def on_waypoint_reached(self, index: int, point: tuple):
-        """钩子函数：到达目标点后触发（可用于语音、拍照等）。
+    def speech_text(self, text: str, timeout_sec: float = 10.0) -> bool:
+        """
+        调用语音合成服务并等待结果（带超时）。
 
         Args:
-            index: 当前目标点索引
-            point: (x, y, yaw)
-        """
-        self.get_logger().info(f"Waypoint {index} reached! Extend this method for audio/camera.")
-        # TODO: 播放语音
-        # TODO: 保存摄像头图像
+            text: 要朗读的文本
+            timeout_sec: 最大等待时间（秒）
 
+        Returns:
+            bool: True 表示成功，False 表示失败或超时
+        """
+        if not text.strip():
+            self.get_logger().warn("Empty text, skipping speech.")
+            return True
+
+        
+
+        # 等待服务上线（带超时）
+        wait_start = self.get_clock().now()
+        while not self.speech_client_.service_is_ready():
+            if (self.get_clock().now() - wait_start) > Duration(seconds=timeout_sec):
+                self.get_logger().error(f"Speech service '~/speech_text' not available after {timeout_sec}s")
+                return False
+            rclpy.spin_once(self, timeout_sec=0.1)
+            if not rclpy.ok():
+                return False
+
+        # 发送请求
+        request = SpeechText.Request()
+        request.text = text
+        future = self.speech_client_.call_async(request)
+
+        # 等待结果（非阻塞轮询）
+        start_time = self.get_clock().now()
+        while not future.done():
+            if not rclpy.ok():
+                return False
+
+            elapsed = self.get_clock().now() - start_time
+            if elapsed > Duration(seconds=timeout_sec):
+                self.get_logger().error(f"Speech service call timed out after {timeout_sec}s")
+                return False
+
+            rclpy.spin_once(self, timeout_sec=0.1)
+
+        # 处理结果
+        try:
+            response = future.result()
+            if response.result:
+                self.get_logger().info("Speech synthesis succeeded.")
+                return True
+            else:
+                self.get_logger().error("Speech synthesis failed (service returned false).")
+                return False
+        except Exception as e:
+            self.get_logger().error(f"Speech service call failed with exception: {e}")
+            return False
+        
+    def on_waypoint_reached(self, index: int, point: tuple):
+        """钩子函数：到达目标点后触发（预留扩展点）。"""
+        self.get_logger().info(f"Waypoint {index} reached: {point}")
+        # TODO: 拍照、记录、触发其他行为
 
 def main():
     rclpy.init()
@@ -151,7 +213,8 @@ def main():
         if not patrol.init_robot_pose():
             patrol.get_logger().fatal("Failed to initialize robot pose. Exiting.")
             return
-
+        
+        patrol.speech_text("位姿初始化完成，开始巡检任务。")
         patrol_mode = patrol.get_parameter('patrol_mode').value
         loop_count = 0
 
@@ -159,6 +222,7 @@ def main():
             points = patrol.get_target_points()
             if not points:
                 patrol.get_logger().warn("No valid waypoints. Exiting.")
+                patrol.speech_text("未检测到可用目标点")
                 break
 
             patrol.get_logger().info(f"Starting patrol round {loop_count + 1}...")
@@ -167,12 +231,15 @@ def main():
             for i, (x, y, yaw) in enumerate(points):
                 map_frame = patrol.get_parameter('map_frame').value
                 target_pose = get_pose_stamped(x, y, yaw, frame_id=map_frame)
+                patrol.speech_text(f"前往第 {i+1} 个目标点，坐标 {x:.1f}, {y:.1f}")
                 result = patrol.nav_to_pose(target_pose)
 
                 if result == TaskResult.SUCCEEDED:
                     patrol.on_waypoint_reached(i, (x, y, yaw))
+                    patrol.speech_text(f"已到达第 {i+1} 个目标点。")
                 else:
                     patrol.get_logger().error(f"Failed to reach waypoint {i}.")
+                    patrol.speech_text("导航失败，任务中止。")
                     all_succeeded = False
                     break
 

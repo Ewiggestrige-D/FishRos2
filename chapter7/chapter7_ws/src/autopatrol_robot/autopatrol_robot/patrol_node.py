@@ -14,6 +14,8 @@ FishRos2 7.5.1 机器人系统架构设计
 FishRos2 7.5.2 编写巡检控制节点
 核心需求: 1. 直接继承上一小节navigator和之前tf变换的代码实现小车的自动巡检
 
+FishRos2 7.5.3 添加语音播报功能
+核心需求: 1. 在patrol_node主程序中创建一个客户端，调用speaker中的语音合成服务
 """
 
 import rclpy
@@ -25,8 +27,9 @@ from rclpy.duration import Duration
 
 from tf2_ros import TransformListener, Buffer
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
-import math
+
 import time
+from autopatrol_interfaces.srv import SpeechText
 
 class PatrolNode(BasicNavigator):
     def __init__(self, node_name='patrol_robot', namespace=''):
@@ -83,6 +86,7 @@ class PatrolNode(BasicNavigator):
         # 因此需要三个一组，平行排列的方式，而不是内部再添加新的数组，
         self.initial_point_ = self.get_parameter('initial_point').value
         self.target_points_ = self.get_parameter('target_points').value
+        self.speech_client_ = self.create_client(SpeechText,'speech_text')
         
         self.buffer_ = Buffer()
         self.listener_ = TransformListener(self.buffer_,self) # 创建监听器，用节点来进行监听，因此需要传入node
@@ -246,19 +250,47 @@ class PatrolNode(BasicNavigator):
                 return transform
             except Exception as e:
                 self.get_logger().warn(f'获取坐标变换失败，原因：{str(e)}')
+    
+    def speech_text(self,text):
+        """
+        speech_text 的 Docstring
+        调用语音合成与播报的函数
+        :param self: 说明
+        """
+        while not self.speech_client_.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info(f'语音合成服务未上线，等待中...')
         
+        request = SpeechText.Request()
+        request.text = text
+        future  = self.speech_client_.call_async(request)
+        rclpy.spin_until_future_complete(self,future)
+        
+        if future.exception() is not None:
+            self.get_logger().error(f'服务调用异常: {future.exception()}')
+            return None
+        
+        if future.result() is not None:
+            response = future.result()
+            if response.result == True:
+                self.get_logger().info(f'语音合成成功{text}')
+            else :
+                self.get_logger().error(f'语音合成失败{text}')
+        else:
+            self.get_logger().error(f'语音响应失败')
         
 def main():
     rclpy.init()
-    patrol =PatrolNode()
+    patrol = PatrolNode()
+    patrol.speech_text('正在准备初始化位姿')
     patrol.init_robot_pose()
-    
+    patrol.speech_text('位姿初始化完成')
     while rclpy.ok():
         points = patrol.get_target_points()
         
         for point in points:
             x,y,yaw = point[0],point[1],point[2]
             target_pose = patrol.get_pose_by_xyyaw(x,y,yaw)
+            patrol.speech_text(f'正在准备前往{x},{y}目标点')
             patrol.nav_to_pose(target_pose)
     rclpy.shutdown()
 
