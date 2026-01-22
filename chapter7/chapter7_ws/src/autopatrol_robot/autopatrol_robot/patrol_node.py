@@ -16,6 +16,10 @@ FishRos2 7.5.2 编写巡检控制节点
 
 FishRos2 7.5.3 添加语音播报功能
 核心需求: 1. 在patrol_node主程序中创建一个客户端，调用speaker中的语音合成服务
+
+FishRos2 7.5.4 订阅图像并记录
+核心需求: 1. 通过订阅相机的话题拿到相机的图像 Topic: /camera_sensor/image_raw
+2. 利用CvBridge将图片转换为openCV的格式进行保存 （可参考第四章节人脸识别部分内容）
 """
 
 import rclpy
@@ -30,6 +34,13 @@ from tf_transformations import quaternion_from_euler, euler_from_quaternion
 
 import time
 from autopatrol_interfaces.srv import SpeechText
+
+
+# 导入相机图像的相关接口
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge # 图像信息转换格式
+import cv2 # 保存图像
+
 
 class PatrolNode(BasicNavigator):
     def __init__(self, node_name='patrol_robot', namespace=''):
@@ -90,6 +101,13 @@ class PatrolNode(BasicNavigator):
         
         self.buffer_ = Buffer()
         self.listener_ = TransformListener(self.buffer_,self) # 创建监听器，用节点来进行监听，因此需要传入node
+        
+        # 将图像保存的路径定义为一个参数方便灵活修改,默认值为空即保存到当前的相对目录
+        self.declare_parameter('image_save_path','') 
+        self.image_save_path_ = self.get_parameter('image_save_path').value
+        self.cv_bridge_ = CvBridge()
+        self.latest_img_ = None
+        self.img_sub_ = self.create_subscription(Image,'/camera_sensor/image_raw',self.img_callback,2)
         
     def get_pose_by_xyyaw(self,x,y,yaw):
         """
@@ -277,7 +295,38 @@ class PatrolNode(BasicNavigator):
                 self.get_logger().error(f'语音合成失败{text}')
         else:
             self.get_logger().error(f'语音响应失败')
+            
+    def img_callback(self,msg):
+        """
+        img_callback 的 Docstring
+        7.5.4订阅图像并记录
+        获取相机图片信息之后的回调函数，将最新的数据放入lastet_img，使用时仅调用最新的数据
+        默认保存目录为当前同级文件夹目录
+        :param self: 说明
+        """
+        self.latest_img_ = msg 
         
+    def record_img(self):
+        """
+        record_img 的 Docstring
+        7.5.4订阅图像并记录
+        用于转换成opencv可以保存的形式并保存图片到指定目录下
+        :param self: 说明
+        """    
+        if self.latest_img_ is not None:
+            pose = self.get_current_pose()
+            cv_image = self.cv_bridge_.imgmsg_to_cv2(self.latest_img_) # 转换成opencv
+            cv2.imwrite(
+                f'{self.image_save_path_}img_{pose.translation.x:3.2f}_{pose.translation.y:3.2f}.png',
+                cv_image
+            )
+        else:
+            self.get_logger().error(f'暂时无法获取到最新图像')
+        
+        
+        
+        
+    
 def main():
     rclpy.init()
     patrol = PatrolNode()
@@ -292,6 +341,9 @@ def main():
             target_pose = patrol.get_pose_by_xyyaw(x,y,yaw)
             patrol.speech_text(f'正在准备前往{x},{y}目标点')
             patrol.nav_to_pose(target_pose)
+            patrol.speech_text(f'已经到达{x},{y}目标点,相机正在准备保存图像')
+            patrol.record_img()
+            patrol.speech_text(f'图像保存完毕')
     rclpy.shutdown()
 
 if __name__ == '__main__':
