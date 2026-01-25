@@ -1,0 +1,95 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- 
+        定义 fishbot 的 ros2_control 配置宏。
+        此配置描述了机器人关节的控制接口，供 ros2_control 框架使用。
+        注意：此部分仅声明接口，不涉及具体硬件实现。
+    -->
+    <xacro:macro name="fishbot_ros2_control">
+        
+        <!-- 
+            ros2_control 标签定义一个硬件组件（hardware component）。
+            type="system" 表示该组件管理多个关节（如轮式机器人底盘）。
+            name 应唯一，通常与 URDF 中的 robot name 或功能模块对应。
+        -->
+        <ros2_control name="FishBotGazeboSystem" type="system">
+            
+            <!-- 
+                hardware 标签指定底层硬件驱动插件。
+                在 Gazebo 仿真中，使用 gazebo_ros2_control 提供的 GazeboSystem 插件，
+                该插件将 ros2_control 的接口与 Gazebo 的物理引擎桥接。
+            -->
+            <hardware>
+                <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+            </hardware>
+
+            <!-- 
+                定义 left_wheel_joint 的控制与状态接口。
+                注意：joint name 必须与 URDF 中定义的 joint 名称完全一致。
+            -->
+            <joint name="left_wheel_joint">
+                <!-- 
+                    command_interface：控制器可写入的命令接口。
+                    - "velocity" 目标角速度 (rad/s)
+                    - "effort" 目标力矩 (N·m)
+                    参数 min/max 用于限制命令范围（可选，部分控制器会使用）。
+                -->
+                <command_interface name="velocity">
+                    <param name="min">-1</param>   <!-- 最小角速度 (rad/s) -->
+                    <param name="max">1</param>    <!-- 最大角速度 (rad/s) -->
+                </command_interface>
+                <command_interface name="effort">
+                    <param name="min">-0.1</param> <!-- 最小力矩 (N·m) -->
+                    <param name="max">0.1</param>  <!-- 最大力矩 (N·m) -->
+                </command_interface>
+
+                <!-- 
+                    state_interface：硬件可读取的状态接口。
+                    这些值由 Gazebo 物理引擎计算并反馈给控制器，
+                    通常包括位置 (rad)、速度 (rad/s)、力矩 (N·m)。
+                    注意：这些并非直接来自物理传感器，而是仿真状态。
+                -->
+                <state_interface name="position" />
+                <state_interface name="velocity" />
+                <state_interface name="effort" />
+            </joint>
+
+            <!-- 同上，为右轮定义相同的接口 -->
+            <joint name="right_wheel_joint">
+                <command_interface name="velocity">
+                    <param name="min">-1</param>
+                    <param name="max">1</param>
+                </command_interface>
+                <command_interface name="effort">
+                    <param name="min">-0.1</param>
+                    <param name="max">0.1</param>
+                </command_interface>
+                <state_interface name="position" />
+                <state_interface name="velocity" />
+                <state_interface name="effort" />
+            </joint>
+        </ros2_control>
+
+        <!-- 
+            Gazebo 插件：加载 gazebo_ros2_control 插件，
+            用于将上述 ros2_control 配置与 Gazebo 仿真连接。
+            parameters 指向控制器配置文件（YAML），
+            该文件定义了使用哪些 controller（如 diff_drive_controller）。
+        -->
+    <gazebo>
+        <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+            <parameters>$(find fishbot_description)/rviz_config/fishbot_ros2_controller.yaml</parameters>
+            <ros>
+                <remapping>/fishbot_diff_drive_controller/cmd_vel_unstamped:=/cmd_vel</remapping>
+                <remapping>/fishbot_diff_drive_controller/odom:=/odom</remapping>
+            </ros>
+        </plugin>
+    </gazebo>
+    </xacro:macro>
+</robot>
+
+<!-- 
+在xacro中，如果你的注释中有冒号，对的，就是冒号，后面不可以加空格，否则启动不了ros2_controller 的某些话题，
+而且会报类似于xml有问题的奇怪的错误，请检查所有引入的文件中是否有冒号加空格组合，删掉就可以了。
+ -->

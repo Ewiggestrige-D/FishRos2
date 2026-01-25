@@ -1,0 +1,57 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 200  # Hz 原10Hz
+    use_sim_time: true
+
+    # 关节状态发布的控制器
+    fishbot_joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+      use_sim_time: true
+    # 力的控制器
+    fishbot_effort_controller:
+      type: effort_controllers/JointGroupEffortController
+    # 两轮的差速器
+    fishbot_diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+# 力的控制器具体参数配置
+fishbot_effort_controller:
+  ros__parameters:
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+    command_interfaces:
+      - effort
+    state_interfaces:
+      - position
+      - velocity
+      - effort
+
+
+
+fishbot_diff_drive_controller:
+  ros__parameters:
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+
+    wheel_separation: 0.20 # 原0。17
+    #wheels_per_side: 1  # actually 2, but both are controlled by 1 signal
+    wheel_radius: 0.032
+
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: 1.0
+    right_wheel_radius_multiplier: 1.0
+
+    publish_rate: 100.0 # 原50
+    odom_frame_id: odom
+    base_frame_id: base_footprint
+    pose_covariance_diagonal : [0.0001, 0.0001, 0.0, 0.0, 0.0, 0.01] #原[0.001, 0.001, 0.0, 0.0, 0.0, 0.01]
+    twist_covariance_diagonal: [0.0001, 0.0, 0.0, 0.0, 0.0, 0.001] #原 [0.001, 0.0, 0.0, 0.0, 0.0, 0.01] 
+
+    open_loop: false
+    enable_odom_tf: true
+
+    cmd_vel_timeout: 0.5
+    #publish_limited_velocity: true
+    use_stamped_vel: false
+    #velocity_rolling_window_size: 10
