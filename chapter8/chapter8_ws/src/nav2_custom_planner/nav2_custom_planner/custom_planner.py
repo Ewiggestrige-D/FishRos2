@@ -2,6 +2,18 @@
 """
 Fish Ros2 8.2.2 搭建规划器插件框架（下）
 核心需求：1. 逐行对应 C++ 实现 CustomPlanner 的 Python 版本。
+2. 
+| C++ 行 | Python 实现 | 说明 |
+|-------|------------|------|
+| `costmap_ros->getCostmap()` | `_costmap_callback` + `_costmap` | 通过订阅获取地图 |
+| `costmap_->worldToMap()` | `_world_to_map()` | 手动实现坐标转换 |
+| `costmap_->getCost()` | `_get_cost()` | 查询栅格值 |
+| `LETHAL_OBSTACLE` | `== 100` | ROS 2 中 100 表示致命障碍 |
+| `declare_parameter_if_not_declared` | `declare_parameter` | Python 等效方法 |
+| `throw PlannerException` | `raise PlannerException` | 需安装 `nav2_core` Python 包 |
+
+Fish Ros2 8.2.3 实现自定义规划算法
+核心需求：1. 实现直线路径规划算法
 """
 
 from typing import Optional, List
@@ -21,7 +33,7 @@ class PlannerException(Exception):
     pass
 
 
-class nav2_custom_planner:
+class CustomPlanner:
     """
     该类不继承任何基类（duck typing），但必须实现以下公有方法：
     - configure
@@ -177,7 +189,7 @@ class nav2_custom_planner:
         global_path.header.frame_id = self._global_frame
         global_path.poses = [] 
 
-        # 2. 检查坐标系是否匹配
+        # 2. 检查坐标系是否在全局坐标系中
         if start.header.frame_id != self._global_frame:
             self._node.get_logger().error(
                 f"规划器仅接受来自 {self._global_frame} 坐标系的起始位置"
@@ -190,7 +202,7 @@ class nav2_custom_planner:
             )
             return global_path
 
-        # 3. 计算插值步数和增量
+        # 3. 计算当前插值分辨率 interpolation_resolution_ 下的循环次数和步进值
         dx = goal.pose.position.x - start.pose.position.x
         dy = goal.pose.position.y - start.pose.position.y
         distance = math.hypot(dx, dy)
@@ -213,10 +225,12 @@ class nav2_custom_planner:
             pose.pose.position.y = start.pose.position.y + y_increment * i
             pose.pose.position.z = 0.0
             pose.pose.orientation = start.pose.orientation
+            # 将该点放到路径中
             global_path.poses.append(pose)
 
         # 5. 检查路径是否经过致命障碍物（值 == 100）
         for pose in global_path.poses:
+            # 将点的坐标转换为栅格坐标下的cost
             cost = self._get_cost(pose.pose.position.x, pose.pose.position.y)
             if cost == 100:  # LETHAL_OBSTACLE
                 msg = f"在({pose.pose.position.x:.2f},{pose.pose.position.y:.2f})检测到致命障碍物，规划失败。"
@@ -225,7 +239,7 @@ class nav2_custom_planner:
                     f"无法创建目标规划: {goal.pose.position.x}, {goal.pose.position.y}"
                 )
 
-        # 6. 添加目标点作为最后一个点
+        # 6. 收尾，将目标点作为路径的最后一个点并返回路径
         goal_pose = PoseStamped()
         goal_pose.header.stamp = self._node.get_clock().now().to_msg()
         goal_pose.header.frame_id = self._global_frame

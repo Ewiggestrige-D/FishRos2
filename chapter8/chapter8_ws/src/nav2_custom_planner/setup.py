@@ -10,6 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name, ['plugins.xml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -26,7 +27,7 @@ setup(
         'console_scripts': [
         ],
         'nav2_core.global_planner': [
-        'nav2_custom_planner = nav2_custom_planner.nav2_custom_planner:nav2_custom_planner',
+        'CustomPlanner = nav2_custom_planner.custom_planner:CustomPlanner',
     ],
     },
 )
