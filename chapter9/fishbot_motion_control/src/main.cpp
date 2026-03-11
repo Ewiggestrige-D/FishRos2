@@ -104,10 +104,10 @@ void setup()
 
 void loop()
 {
-    delay(200);           // 等待10毫秒
-    motorSpeedControl(); // 
-    Serial.printf("x=%f,y=%f,angle=%f\n", 
-        kinematics.get_odom().x,
-        kinematics.get_odom().y, 
-        kinematics.get_odom().yaw); //不是angle
+    delay(200);          // 等待10毫秒
+    motorSpeedControl(); //
+    Serial.printf("x=%f,y=%f,angle=%f\n",
+                  kinematics.get_odom().x,
+                  kinematics.get_odom().y,
+                  kinematics.get_odom().yaw); // 不是angle
 }
