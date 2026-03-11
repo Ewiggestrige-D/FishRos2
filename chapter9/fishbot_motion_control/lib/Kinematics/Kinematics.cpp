@@ -25,7 +25,12 @@ int16_t Kinematics::get_motor_speed(uint8_t id)
  * @param left_tick 左轮编码器读数
  * @param right_tick 右轮编码器读数
  */
-void Kinematics::update_motor_speed(uint64_t current_time, int32_t motor_tick1, int32_t motor_tick2, int32_t motor_tick3, int32_t motor_tick4)
+void Kinematics::update_motor_speed(
+    uint64_t current_time, 
+    int32_t motor_tick1, 
+    int32_t motor_tick2, 
+    int32_t motor_tick3, 
+    int32_t motor_tick4)
 {
     // 计算出自上次更新以来经过的时间 dt
     uint32_t dt = current_time - last_update_time;
@@ -49,6 +54,9 @@ void Kinematics::update_motor_speed(uint64_t current_time, int32_t motor_tick1, 
         float(dtick2 * motor_param_[2].per_pulse_distance) / dt * 1000;
     motor_param_[3].motor_speed =
         float(dtick2 * motor_param_[3].per_pulse_distance) / dt * 1000;
+
+    // 更新里程计信息 
+    update_odom(dt);
 }
 
 /**
@@ -91,4 +99,48 @@ void Kinematics::kinematic_inverse(
     out_wheel_speed2 = linear_x_speed + linear_y_speed + angular_speed * (wheel_distance_a_and_b_);
     out_wheel_speed3 = linear_x_speed + linear_y_speed - angular_speed * (wheel_distance_a_and_b_);
     out_wheel_speed4 = linear_x_speed - linear_y_speed + angular_speed * (wheel_distance_a_and_b_);
+}
+
+/*添加里程计获取get_odom和角度限制方法TransAngleInPI*/
+odom_t &Kinematics::get_odom()
+{
+    return odom_;
+}
+
+// 用于将角度转换到 -π 到 π 的范围内
+void Kinematics::TransAngleInPI(float angle, float &out_angle)
+{ // 如果 angle 大于 π，则将 out_angle 减去 2π
+    if (angle > PI)
+    {
+        out_angle -= 2 * PI;
+    }
+
+    // 如果 angle 小于 -π，则将 out_angle 加上 2π
+    else if (angle < -PI)
+    {
+        out_angle += 2 * PI;
+    }
+}
+
+/*添加里程计更新方法 update_odom*/
+void Kinematics::update_odom(uint16_t dt)
+{
+    float linear_x_speed, linear_y_speed, angular_speed;
+    float dt_s = (float)(dt / 1000) / 1000;
+    this->kinematic_forward(
+        motor_param_[0].motor_speed,
+        motor_param_[1].motor_speed,
+        motor_param_[2].motor_speed,
+        motor_param_[3].motor_speed,
+        linear_x_speed,
+        linear_y_speed,
+        angular_speed);
+    odom_.angular_speed = angular_speed;
+    odom_.linear_x_speed = linear_x_speed / 1000; // /1000（mm/s 转 m/s）
+    odom_.linear_y_speed = linear_y_speed / 1000; // /1000（mm/s 转 m/s）
+    /*更新x和y轴上移动的距离*/
+    odom_.x += odom_.linear_x_speed * cos(odom_.yaw) * dt_s + odom_.linear_y_speed * sin(odom_.yaw) * dt_s;
+    odom_.y += odom_.linear_y_speed * cos(odom_.yaw) * dt_s + odom_.linear_x_speed * sin(odom_.yaw) * dt_s;
+    odom_.yaw += odom_.angular_speed * dt_s;
+    Kinematics::TransAngleInPI(odom_.yaw, odom_.yaw);
 }

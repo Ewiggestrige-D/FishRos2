@@ -53,6 +53,7 @@ void motorSpeedControl()
                   current_speeds[2],
                   current_speeds[3]);
 }
+
 void setup()
 {
 
@@ -84,25 +85,29 @@ void setup()
     kinematics.set_motor_param(2, 0.1051566);
     kinematics.set_motor_param(3, 0.1051566);
 
-    // 运动学逆解并设置速度 
+    // 运动学逆解并设置速度
     kinematics.kinematic_inverse(
-        target_linear_x_speed, 
-        target_linear_y_speed, 
-        target_angular_speed, 
-        out_speed[0], 
-        out_speed[1], 
-        out_speed[2], 
+        target_linear_x_speed,
+        target_linear_y_speed,
+        target_angular_speed,
+        out_speed[0],
+        out_speed[1],
+        out_speed[2],
         out_speed[3]);
-    
-    // 设置电机速度 
-    for (int i = 0; i < 4; i++) 
-    { // 初始化目标速度，单位 mm/s，使用毫米防止浮点运算丢失精度 
-        pid_controller[i].update_target(out_speed[i]); 
+
+    // 设置电机速度
+    for (int i = 0; i < 4; i++)
+    { // 初始化目标速度，单位 mm/s，使用毫米防止浮点运算丢失精度
+        pid_controller[i].update_target(out_speed[i]);
     }
 }
 
 void loop()
 {
-    delay(10); // 等待10毫秒
-    motorSpeedControl(); // 调用速度控制函数
+    delay(200);           // 等待10毫秒
+    motorSpeedControl(); // 
+    Serial.printf("x=%f,y=%f,angle=%f\n", 
+        kinematics.get_odom().x,
+        kinematics.get_odom().y, 
+        kinematics.get_odom().yaw); //不是angle
 }

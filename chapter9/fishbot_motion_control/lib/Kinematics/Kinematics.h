@@ -4,13 +4,24 @@
 #include <Arduino.h> /* 包含 Arduino 核心库*/
 
 // 定义一个结构体用于存储电机参数
-typedef struct motor_param_t
+struct motor_param_t
 {
     float per_pulse_distance;
     /* 单个脉冲对应轮子前进距离 */
     int16_t motor_speed;
     /* 当前电机速度 mm/s,计算时使用*/
     int64_t last_encoder_tick; /* 上次电机的编码器读数*/
+};
+// 定义一个odom_t结构体，来表示里程计信息，并声明了成员变量 odom_t用于存储里程计
+struct odom_t
+{
+    float x;                 // 坐标x
+    float y;                 // 坐标y
+    float yaw;               // yaw
+    //quaternion_t quaternion; // 姿态四元数
+    float linear_x_speed;    // x线速度
+    float linear_y_speed;    // y线速度
+    float angular_speed;     // 角速度
 };
 
 /* 定义一个类用于处理机器人运动学 */
@@ -21,11 +32,17 @@ public:
     Kinematics() = default;
     /* 析构函数,默认实现 */
     ~Kinematics() = default;
+    /* 更新里程计数据 */
+    void update_odom(uint16_t dt);
+    /* 获取里程计数据 */
+    odom_t &get_odom();
+    /* 用于将角度转换到 -π 到 π 的范围内 */
+    static void TransAngleInPI(float angle, float &out_angle);
 
     /* 设置电机参数,包括编号和每个脉冲对应的轮子前进距离 */
     void set_motor_param(uint8_t id, float per_pulse_distance);
     /* 设置轮子间距*/
-    void set_wheel_distance(float wheel_distance_a, float wheel_distance_b );
+    void set_wheel_distance(float wheel_distance_a, float wheel_distance_b);
 
     /* 正运动学计算,将左右轮的速度转换为线速度和角速度*/
     void kinematic_forward(
@@ -64,6 +81,7 @@ private:
     /* 上次更新数据的时间,单位 ms*/
     float wheel_distance_;
     /* 轮子间距*/
+    odom_t odom_; /* 存储里程计信息 */
 };
 
 #endif // __KINEMATICS_H__
