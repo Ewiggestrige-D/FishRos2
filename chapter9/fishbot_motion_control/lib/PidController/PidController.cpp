@@ -27,7 +27,7 @@ float PidController::update(float current)
     // 控制输出限幅
     if (output > out_max_)
         output = out_max_;
-    if (output > out_min_)
+    if (output < out_min_)
         output = out_min_;
 
     return output;
@@ -50,8 +50,8 @@ void PidController::reset()
 {
     // 重置控制器状态
     target_ = 0.0f;     // 控制目标值
-    out_min_ = 0.0f;    // 控制输出最小值
-    out_max_ = 0.0f;    // 控制输出最大值
+    out_min_ = -100.0f;    // 控制输出最小值
+    out_max_ = 100.0f;    // 控制输出最大值
     kp_ = 0.0f;         // 比例项系数
     ki_ = 0.0f;         // 积分项系数
     kd_ = 0.0f;         // 微分项系数

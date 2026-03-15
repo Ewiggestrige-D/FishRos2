@@ -2,12 +2,27 @@
 接着计算编码器数值差，然后乘上参数0.1051566获取距离，最后除上时间差就得到了单位为mm/ms的速度数据，换算单位后刚好是m/s，
 同时为了方便查看，我们利用Esp32McpwmMotor将两个电机的速度设置为70 %。
 */
-
+/*核心修改点对比
+|问题                  | 原因                                                     |   修复                       |  
+|按k不停车，来回震荡   |   error_sum_积累到2500，消退慢                           |   目标变化时立即清零积分     |
+|转向切换响应迟钝      |   integral_up_=2500导致积分项最大贡献312，远超输出限幅   |   改为200，积分贡献最大25    |
+|积分消退时间长        |   ki×integral_up = 312 >> 100                           |   调整后ki×integral_up = 25 |
+最关键的改动是 update_target() 里检测目标变化时清零积分——这样按下 k 发出停止指令的瞬间，积分历史立刻清除，电机能立即响应新目标。*/
 #include <Arduino.h>
 #include <Esp32McpwmMotor.h>
 #include <Esp32PcntEncoder.h> // 通过 MCPWM 外设 控制电机，支持正反转和 PWM 调速。
 #include <PidController.h>    // 引入 PID 控制器头文件
 #include <Kinematics.h>       // 引入运动学头文件
+
+/*引入micro-ROS和WIFI相关的头文件*/
+#include <WiFi.h>
+#include <micro_ros_platformio.h>
+#include <rcl/rcl.h>
+#include <rclc/rclc.h>
+#include <rclc/executor.h>
+
+/*添加速度话题的订阅者和回调函数*/
+#include <geometry_msgs/msg/twist.h>
 
 Kinematics kinematics;
 Esp32PcntEncoder encoders[4];    // 是一个包含 4 个 Esp32PcntEncoder 对象的数组，分别对应 4 个电机的编码器。
@@ -20,10 +35,80 @@ int32_t delta_ticks[4]; // 记录两次读取之间的计数器差值
 int64_t last_update_time; // 记录上一次更新时间
 float current_speeds[4];  // 记录四个电机的速度
 
-float target_linear_x_speed = 50.0; // 目标X方向线速度 毫米每秒
+float target_linear_x_speed = 0.0; // 目标X方向线速度 毫米每秒,设置为0,防止小车一启动就开始运动
 float target_linear_y_speed = 0.0;  // 目标Y方向线速度 毫米每秒
-float target_angular_speed = 0.1f;  // 目标角速度 弧度每秒
+float target_angular_speed = 0.0;  // 目标角速度 弧度每秒
 float out_speed[4];                 // 用于存储运动学逆解后的速度
+
+/*声明结构体相关的对象*/
+rcl_allocator_t allocator; // 内存分配器，用于动态内存分配管理
+rclc_support_t support;    // 用于存储始终，内存分配器和上下艾提供支持
+rclc_executor_t executor;  // 执行器，用于管理订阅和记事起回调的执行
+rcl_node_t node;           // 节点
+
+/*创建ros2中的订阅者与订阅消息的消息接口*/
+rcl_subscription_t subscriber;     // 订阅者
+geometry_msgs__msg__Twist sub_msg; // 储存订阅到的速度类型消息
+
+/*定义接收到速度消息之后的回调函数
+函数的主要功能是将twist格式的速度进行运动学逆解，得到小车具体的运动速度*/
+void twist_callback(const void *msg_in)
+{
+    // 将接收到的消息指针转化为 gemometry_msgs_msg_Twist 类型
+    const geometry_msgs__msg__Twist *twist_msg =
+        (const geometry_msgs__msg__Twist *)msg_in;
+    // ✅ 正确：在函数内部声明这些变量
+    float out_wheel_speed1, out_wheel_speed2, out_wheel_speed3, out_wheel_speed4;
+    // 运动学逆解并设置速度
+    kinematics.kinematic_inverse(
+        twist_msg->linear.x * 1000, // ros2订阅的速度是m/s,这里转变成mm/s
+        twist_msg->linear.y * 1000, // 必须包含 linear_y_speed
+        twist_msg->angular.z,
+        out_wheel_speed1,
+        out_wheel_speed2,
+        out_wheel_speed3,
+        out_wheel_speed4);
+    pid_controller[0].update_target(out_wheel_speed1);
+    pid_controller[1].update_target(out_wheel_speed2);
+    pid_controller[2].update_target(out_wheel_speed3);
+    pid_controller[3].update_target(out_wheel_speed4);
+}
+
+/*单独创建一个任务运行micro-ROS,相当于一个新的线程*/
+/*以下是一个完整的micro-ROS节点的编写方法，
+要和Agent建立通信，需要确保WIFI账户信息、Agent地址和端口号正确，
+另外需要注意的是ESP32仅支持2.4 GHz的WIFI信号。*/
+void micro_ros_task(void *parameter)
+{
+    // 1.谁知传输协议并且掩饰等待设置完成
+    IPAddress agent_ip;
+    agent_ip.fromString("192.168.3.3");
+    set_microros_wifi_transports("isaaclab", "Tara000728", agent_ip, 8888);
+    delay(2000); // 等待wifi连接完成
+    // 2.初始化内存分配器
+    allocator = rcl_get_default_allocator();
+    // 3.初始化support
+    rclc_support_init(&support, 0, NULL, &allocator);
+    // 4.初始化节点 fishbot_motion_control
+    rclc_node_init_default(&node, "fishbot_motion_control", "", &support);
+    // 5.初始化执行器
+    unsigned int num_handles = 1; // 添加订阅者回调函数之后的句柄加一
+    rclc_executor_init(&executor, &support.context, num_handles, &allocator);
+    // 6.初始化订阅者并添加到执行器当中
+    rclc_subscription_init_best_effort(
+        &subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
+        "/cmd_vel");
+    rclc_executor_add_subscription(
+        &executor,
+        &subscriber,
+        &sub_msg,
+        &twist_callback,
+        ON_NEW_DATA);
+    // 循环执行器
+    rclc_executor_spin(&executor);
+}
 
 void motorSpeedControl()
 {
@@ -100,6 +185,16 @@ void setup()
     { // 初始化目标速度，单位 mm/s，使用毫米防止浮点运算丢失精度
         pid_controller[i].update_target(out_speed[i]);
     }
+
+    // 创建惹怒为运行mirco_ros_task
+    xTaskCreate(
+        micro_ros_task, // 任务函数
+        "micro_ros",    // 任务名称
+        10240,          // 任务堆栈大小(bit)
+        NULL,           // 传递给人物函数的参数
+        1,              // 任务优先级
+        NULL            // 人物句柄
+    );
 }
 
 void loop()
