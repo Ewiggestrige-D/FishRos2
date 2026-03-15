@@ -2,8 +2,8 @@
 
 void Kinematics::set_motor_param(uint8_t id, float per_pulse_distance)
 {
-    motor_param_[id].per_pulse_distance = per_pulse_distance;
     /* 电机每个脉冲前进距离*/
+    motor_param_[id].per_pulse_distance = per_pulse_distance;
 }
 
 void Kinematics::set_wheel_distance(float wheel_distance_a, float wheel_distance_b)
@@ -26,14 +26,16 @@ int16_t Kinematics::get_motor_speed(uint8_t id)
  * @param right_tick 右轮编码器读数
  */
 void Kinematics::update_motor_speed(
-    uint64_t current_time, 
-    int32_t motor_tick1, 
-    int32_t motor_tick2, 
-    int32_t motor_tick3, 
+    uint64_t current_time,
+    int32_t motor_tick1,
+    int32_t motor_tick2,
+    int32_t motor_tick3,
     int32_t motor_tick4)
 {
     // 计算出自上次更新以来经过的时间 dt
     uint32_t dt = current_time - last_update_time;
+    if (dt == 0)
+        return; // 防止除零
     last_update_time = current_time;
     // 计算电机 1 和电机 2 的编码器读数变化量 dtick1 和 dtick2。
     int32_t dtick1 = motor_tick1 - motor_param_[0].last_encoder_tick;
@@ -45,17 +47,17 @@ void Kinematics::update_motor_speed(
     motor_param_[2].last_encoder_tick = motor_tick3;
     motor_param_[3].last_encoder_tick = motor_tick4;
 
-    // 轮子速度计算
+    // 轮子速度计算 单位：mm/s
     motor_param_[0].motor_speed =
         float(dtick1 * motor_param_[0].per_pulse_distance) / dt * 1000;
     motor_param_[1].motor_speed =
         float(dtick2 * motor_param_[1].per_pulse_distance) / dt * 1000;
     motor_param_[2].motor_speed =
-        float(dtick2 * motor_param_[2].per_pulse_distance) / dt * 1000;
+        float(dtick3 * motor_param_[2].per_pulse_distance) / dt * 1000;
     motor_param_[3].motor_speed =
-        float(dtick2 * motor_param_[3].per_pulse_distance) / dt * 1000;
+        float(dtick4 * motor_param_[3].per_pulse_distance) / dt * 1000;
 
-    // 更新里程计信息 
+    // 更新里程计信息
     update_odom(dt);
 }
 
@@ -126,7 +128,9 @@ void Kinematics::TransAngleInPI(float angle, float &out_angle)
 void Kinematics::update_odom(uint16_t dt)
 {
     float linear_x_speed, linear_y_speed, angular_speed;
-    float dt_s = (float)(dt / 1000) / 1000;
+    // 正确写法：先转float再除
+    float dt_s = (float)dt / 1000.0f; // ms → s，一步到位
+
     this->kinematic_forward(
         motor_param_[0].motor_speed,
         motor_param_[1].motor_speed,
@@ -138,9 +142,12 @@ void Kinematics::update_odom(uint16_t dt)
     odom_.angular_speed = angular_speed;
     odom_.linear_x_speed = linear_x_speed / 1000; // /1000（mm/s 转 m/s）
     odom_.linear_y_speed = linear_y_speed / 1000; // /1000（mm/s 转 m/s）
+
     /*更新x和y轴上移动的距离*/
-    odom_.x += odom_.linear_x_speed * cos(odom_.yaw) * dt_s + odom_.linear_y_speed * sin(odom_.yaw) * dt_s;
-    odom_.y += odom_.linear_y_speed * cos(odom_.yaw) * dt_s + odom_.linear_x_speed * sin(odom_.yaw) * dt_s;
+    odom_.x += odom_.linear_x_speed * cos(odom_.yaw) * dt_s 
+            - odom_.linear_y_speed * sin(odom_.yaw) * dt_s;
+    odom_.y += odom_.linear_y_speed * cos(odom_.yaw) * dt_s 
+            + odom_.linear_x_speed * sin(odom_.yaw) * dt_s;
     odom_.yaw += odom_.angular_speed * dt_s;
     Kinematics::TransAngleInPI(odom_.yaw, odom_.yaw);
 }

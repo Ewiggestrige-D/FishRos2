@@ -3,7 +3,7 @@
 同时为了方便查看，我们利用Esp32McpwmMotor将两个电机的速度设置为70 %。
 */
 /*核心修改点对比
-|问题                  | 原因                                                     |   修复                       |  
+|问题                  | 原因                                                     |   修复                       |
 |按k不停车，来回震荡   |   error_sum_积累到2500，消退慢                           |   目标变化时立即清零积分     |
 |转向切换响应迟钝      |   integral_up_=2500导致积分项最大贡献312，远超输出限幅   |   改为200，积分贡献最大25    |
 |积分消退时间长        |   ki×integral_up = 312 >> 100                           |   调整后ki×integral_up = 25 |
@@ -22,7 +22,11 @@
 #include <rclc/executor.h>
 
 /*添加速度话题的订阅者和回调函数*/
-#include <geometry_msgs/msg/twist.h>
+#include <geometry_msgs/msg/twist.h> //速度消息接口
+
+/*添加发布者、进行时间同步和创建定时器*/
+#include <nav_msgs/msg/odometry.h>                //里程计消息接口
+#include <micro_ros_utilities/string_utilities.h> //为消息中的字符串分配空间和赋值
 
 Kinematics kinematics;
 Esp32PcntEncoder encoders[4];    // 是一个包含 4 个 Esp32PcntEncoder 对象的数组，分别对应 4 个电机的编码器。
@@ -36,9 +40,9 @@ int64_t last_update_time; // 记录上一次更新时间
 float current_speeds[4];  // 记录四个电机的速度
 
 float target_linear_x_speed = 0.0; // 目标X方向线速度 毫米每秒,设置为0,防止小车一启动就开始运动
-float target_linear_y_speed = 0.0;  // 目标Y方向线速度 毫米每秒
+float target_linear_y_speed = 0.0; // 目标Y方向线速度 毫米每秒
 float target_angular_speed = 0.0;  // 目标角速度 弧度每秒
-float out_speed[4];                 // 用于存储运动学逆解后的速度
+float out_speed[4];                // 用于存储运动学逆解后的速度
 
 /*声明结构体相关的对象*/
 rcl_allocator_t allocator; // 内存分配器，用于动态内存分配管理
@@ -49,6 +53,11 @@ rcl_node_t node;           // 节点
 /*创建ros2中的订阅者与订阅消息的消息接口*/
 rcl_subscription_t subscriber;     // 订阅者
 geometry_msgs__msg__Twist sub_msg; // 储存订阅到的速度类型消息
+
+/*创建ros2中的发布者与发布消息的消息接口*/
+rcl_publisher_t odm_publisher;    // odom消息发布者
+nav_msgs__msg__Odometry odom_msg; // 里程计消息
+rcl_timer_t timer;                // 定时器，可以定时调用某个函数
 
 /*定义接收到速度消息之后的回调函数
 函数的主要功能是将twist格式的速度进行运动学逆解，得到小车具体的运动速度*/
@@ -74,6 +83,32 @@ void twist_callback(const void *msg_in)
     pid_controller[3].update_target(out_wheel_speed4);
 }
 
+/*在定时器回调函数中完成话题发布吗，
+由于在ros2系统中的回调函数是事件驱动，
+而发布消息必须是主动的，因此需要你额外添加定时器来触发发布消息的函数*/
+void publisher_callback(rcl_timer_t *timer, int64_t last_call_time)
+{
+    odom_t odom = kinematics.get_odom();                                        // 获取里程计信息
+    int64_t stamp = rmw_uros_epoch_millis();                                    // 获取当前时间
+    odom_msg.header.stamp.sec = static_cast<int32_t>(stamp / 1000);             // 秒部分
+    odom_msg.header.stamp.nanosec = static_cast<int32_t>((stamp % 1000) * 1e6); // 纳秒部分
+    odom_msg.pose.pose.position.x = odom.x;
+    odom_msg.pose.pose.position.y = odom.y;
+    /*odom_msg对角度的表示使用的是四元数，所以我们根据欧拉角Yaw角转四元数的公式，调用正余弦将欧拉角转成四元数*/
+    odom_msg.pose.pose.orientation.w = cos(odom.yaw * 0.5);
+    odom_msg.pose.pose.orientation.x = 0;
+    odom_msg.pose.pose.orientation.y = 0;
+    odom_msg.pose.pose.orientation.z = sin(odom.yaw * 0.5);
+    odom_msg.twist.twist.angular.z = odom.angular_speed;
+    odom_msg.twist.twist.linear.x = odom.linear_x_speed;
+    odom_msg.twist.twist.linear.y = odom.linear_y_speed;
+    // 发布里程计
+    if (rcl_publish(&odm_publisher, &odom_msg, NULL) != RCL_RET_OK)
+    {
+        Serial.printf("error: odom publisher failed!\n");
+    }
+}
+
 /*单独创建一个任务运行micro-ROS,相当于一个新的线程*/
 /*以下是一个完整的micro-ROS节点的编写方法，
 要和Agent建立通信，需要确保WIFI账户信息、Agent地址和端口号正确，
@@ -92,24 +127,72 @@ void micro_ros_task(void *parameter)
     // 4.初始化节点 fishbot_motion_control
     rclc_node_init_default(&node, "fishbot_motion_control", "", &support);
     // 5.初始化执行器
-    unsigned int num_handles = 1; // 添加订阅者回调函数之后的句柄加一
+    unsigned int num_handles = 2; // 添加订阅者回调函数之后的句柄加一,添加定时器发布者之后再加一
     rclc_executor_init(&executor, &support.context, num_handles, &allocator);
     // 6.初始化订阅者并添加到执行器当中
-    rclc_subscription_init_best_effort(
-        &subscriber,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
-        "/cmd_vel");
+    rclc_subscription_init_best_effort(                         // best_effort即最大努力发布数据，
+        &subscriber,                                            // 里程计发布者指针
+        &node,                                                  // 节点指针
+        ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), // 消息接口
+        "/cmd_vel"                                              // 话题名称
+    );
     rclc_executor_add_subscription(
         &executor,
         &subscriber,
         &sub_msg,
         &twist_callback,
         ON_NEW_DATA);
+    // 7.初始化发布者和定时器
+    odom_msg.header.frame_id = micro_ros_string_utilities_set(
+        odom_msg.header.frame_id, "odom");
+    odom_msg.child_frame_id = micro_ros_string_utilities_set(
+        odom_msg.child_frame_id, "base_footprint");
+    rclc_publisher_init_best_effort(
+        &odm_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry),
+        "/odom");
+    // 8.时间同步
+    while (!rmw_uros_epoch_synchronized()) // 如果没有时间同步
+    {
+        rmw_uros_sync_session(1000); // 尝试进行时间同步
+        delay(10);
+    }
+    // 9. 创建定时器，间隔 50 ms 发布调用一次 callback_publisher 发布里程计话题
+    rclc_timer_init_default(
+        &timer,
+        &support,
+        RCL_MS_TO_NS(50),
+        publisher_callback);
+    rclc_executor_add_timer(&executor, &timer);
+
     // 循环执行器
     rclc_executor_spin(&executor);
 }
 
+void motorSpeedControl()
+{
+    // 计算时间差
+    uint64_t current_time = millis();
+
+    //  一行搞定：编码器数据传给kinematics，内部自动算速度+更新里程计
+    kinematics.update_motor_speed(
+        current_time,
+        encoders[0].getTicks(),
+        encoders[1].getTicks(),
+        encoders[2].getTicks(),
+        encoders[3].getTicks());
+
+    // 用kinematics内部速度驱动PID
+    for (int i = 0; i < 4; i++)
+    {
+        // 根据当前速度,更新电机速度值
+        motor.updateMotorSpeed(i,
+                               pid_controller[i].update(kinematics.get_motor_speed(i)));
+    }
+}
+
+/*
 void motorSpeedControl()
 {
     // 计算时间差
@@ -138,7 +221,7 @@ void motorSpeedControl()
                   current_speeds[2],
                   current_speeds[3]);
 }
-
+*/
 void setup()
 {
 
