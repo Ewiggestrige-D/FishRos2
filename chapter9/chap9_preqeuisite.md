@@ -18,4 +18,4 @@ cd到/home/isaac/.platformio/penv之后 使用
 在虚拟环境中安装 pip install platformio
 
 完成之后在chaptter9 中创建一个文件夹
- cd进入文件夹之后使用pio project init 命令初始化，注意此时应该在虚拟环境中
+cd进入文件夹之后使用pio project init 命令初始化，注意此时应该在虚拟环境中
