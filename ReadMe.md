@@ -38,13 +38,11 @@ cd /home/$usr/vscode
 sudo dpkg -i code_1.110.0-1772587980_amd64.deb
 ```
 5. 在VS code中添加插件
-根据之后课程需要，需要安装以下插件
-
+根据之后课程需要，需要安装以下插件  
     1.语言与皮肤类 (3)
        - Chinese (Simplified) (简体中文) Language Pack for Visual Studio Code
        - One Dark Pro
        - Vscode Great Icons  
-     
     2. Python类 (7)
        - python
        - pylance
@@ -53,34 +51,27 @@ sudo dpkg -i code_1.110.0-1772587980_amd64.deb
        - python Indent
        - code Runner
        - autoDocstring       
-     
     3. git类 (1)
-       - Git Graph 
-        
+       - Git Graph    
     4. Markdown & PDF (4)
        - Markdown Preview Enhanced
        - Markdown All in One
        - Markdown PDF 
-       - vscode-pdf  
-     
+       - vscode-pdf    
     5. C++/CMake (3)
        - C/C++
        - C/C++ DevTools
-       - CMake Tools    
-
+       - CMake Tools      
     6. Arduino (2)
        - PlatformIO IDE
        - Serial Monitor  
-        
     7. Robot Model (2)   
        - URDF
-       - Robot Developer Extensions for URDF  
-        
+       - Robot Developer Extensions for URDF     
     8. XML (3)
        - XML
        - XML Tools
        - Pretty XML     
- 
     9. Container (2)
        - Container Tools
        - Dev Containers   
