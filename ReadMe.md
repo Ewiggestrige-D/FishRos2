@@ -1,10 +1,10 @@
 # Fishbot实战教学OS安装及环境依赖配置
 ## Chapter 1 
 1. 下载安装 **Ubuntu 22.04.5 LTS (Jammy Jellyfish)**
-> [Ubuntu 22.04.5 LTS (Jammy Jellyfish)](https://releases.ubuntu.com/jammy/)
-> [Ubuntu 22.04.5 LTS-Desktop image-ISO](https://releases.ubuntu.com/jammy/ubuntu-22.04.5-desktop-amd64.iso)
-> [Kubuntu 22.04 LTS Released](https://cdimage.ubuntu.com/kubuntu/releases/22.04/release/)
-> [Kubuntu-22.04.5-desktop-amd64.iso](https://cdimage.ubuntu.com/kubuntu/releases/22.04/release/kubuntu-22.04.5-desktop-amd64.iso)
+> [Ubuntu 22.04.5 LTS (Jammy Jellyfish)](https://releases.ubuntu.com/jammy/)  
+> [Ubuntu 22.04.5 LTS-Desktop image-ISO](https://releases.ubuntu.com/jammy/ubuntu-22.04.5-desktop-amd64.iso)  
+> [Kubuntu 22.04 LTS Released](https://cdimage.ubuntu.com/kubuntu/releases/22.04/release/)  
+> [Kubuntu-22.04.5-desktop-amd64.iso](https://cdimage.ubuntu.com/kubuntu/releases/22.04/release/kubuntu-22.04.5-desktop-amd64.iso)  
 
 
 2. 使用FishRos 一键安装指令换源并安装**ROS**
@@ -32,17 +32,19 @@ whereis python3
 确认环境变量指向正确的python位置
 
 4. 使用deb安装包下载VS code插件
-访问[VS codex下载](https://code.visualstudio.com/Download)网页,将deb安装包下载到本地文件夹，并进入文件夹，使用**dpkg**命令安装
+访问[VS code下载](https://code.visualstudio.com/Download)网页，将deb安装包下载到本地文件夹，并进入文件夹，使用**dpkg**命令安装
 ```zsh
 cd /home/$usr/vscode
 sudo dpkg -i code_1.110.0-1772587980_amd64.deb
 ```
 5. 在VS code中添加插件
 根据之后课程需要，需要安装以下插件
+
     1.语言与皮肤类 (3)
        - Chinese (Simplified) (简体中文) Language Pack for Visual Studio Code
        - One Dark Pro
-       - Vscode Great Icons
+       - Vscode Great Icons  
+     
     2. Python类 (7)
        - python
        - pylance
@@ -50,31 +52,38 @@ sudo dpkg -i code_1.110.0-1772587980_amd64.deb
        - python Enviroments
        - python Indent
        - code Runner
-       - autoDocstring   
+       - autoDocstring       
+     
     3. git类 (1)
        - Git Graph 
+        
     4. Markdown & PDF (4)
        - Markdown Preview Enhanced
        - Markdown All in One
        - Markdown PDF 
-       - vscode-pdf
+       - vscode-pdf  
+     
     5. C++/CMake (3)
        - C/C++
        - C/C++ DevTools
-       - CMake Tools  
+       - CMake Tools    
+
     6. Arduino (2)
        - PlatformIO IDE
-       - Serial Monitor
+       - Serial Monitor  
+        
     7. Robot Model (2)   
        - URDF
-       - Robot Developer Extensions for URDF
+       - Robot Developer Extensions for URDF  
+        
     8. XML (3)
        - XML
        - XML Tools
-       - Pretty XML   
+       - Pretty XML     
+ 
     9. Container (2)
        - Container Tools
-       - Dev Containers 
+       - Dev Containers   
 
 ## Chapter 2
 1. 多功能包的最佳实践WorkSpace
@@ -82,13 +91,15 @@ sudo dpkg -i code_1.110.0-1772587980_amd64.deb
 ```zsh
 mkdir -p ChapterX/chapN_ws/src
 cd ~/{$FILE_NAME}/ChapterX/chapN_ws/src
-ros2 pkg crate {$PKG_NAME} \\
+ros2 pkg create {$PKG_NAME} \\
 --build-type ament_python \\
 --dependencies rclpy \\
 --license Apache-2.0 \\
 --description "DESCRIPTION"
 ```
-在编译时，一定要在chapN_ws文件下编译
+
+
+在编译时，一定要在**chapN_ws文件**下编译
 ```zsh
 cd ~/{$FILE_NAME}/ChapterX/chapN_ws
 colcon build   # 编译
@@ -105,3 +116,27 @@ log/
 ```
 
 ## Chapter3
+
+## Chapter5
+1. 发布 /tf_static话题
+```zsh
+sudo apt install ros-$ROS_DISTRO-tf-transformations
+sudo pip3 installtrasformed3d 
+```
+
+
+## Chapter6
+1. 安装静态坐标发布者publisher，方便rviz和rqt等工具可视化topic消息
+```zsh
+sudo apt install ros-$ROS_DISTRO-joint-state-publisher
+sudo apt install ros-$ROS_DISTRO-robot-state-publisher
+```
+
+2. 安装tf-tree插件
+```zsh
+sudo apt install ros-$ROS_DISTRO-rqt-tf-tree
+```
+安装好之后删除如下配置文件
+```zsh
+rm ~/.config/ros.org/rqt_gui.ini
+```
