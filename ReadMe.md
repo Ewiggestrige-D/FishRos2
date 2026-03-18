@@ -39,7 +39,7 @@ sudo dpkg -i code_1.110.0-1772587980_amd64.deb
 ```
 5. 在VS code中添加插件
 根据之后课程需要，需要安装以下插件  
-    1.语言与皮肤类 (3)
+    1. 语言与皮肤类 (3)
        - Chinese (Simplified) (简体中文) Language Pack for Visual Studio Code
        - One Dark Pro
        - Vscode Great Icons  
@@ -81,7 +81,7 @@ sudo dpkg -i code_1.110.0-1772587980_amd64.deb
 在文件夹下创建workspace文件夹，并使用ros2 创建功能包
 ```zsh
 mkdir -p ChapterX/chapN_ws/src
-cd ~/{$FILE_NAME}/ChapterX/chapN_ws/src
+cd ~/${FILE_NAME}/ChapterX/chapN_ws/src
 ros2 pkg create {$PKG_NAME} \\
 --build-type ament_python \\
 --dependencies rclpy \\
@@ -92,13 +92,13 @@ ros2 pkg create {$PKG_NAME} \\
 
 在编译时，一定要在**chapN_ws文件**下编译
 ```zsh
-cd ~/{$FILE_NAME}/ChapterX/chapN_ws
+cd ~/${FILE_NAME}/ChapterX/chapN_ws
 colcon build   # 编译
 source install/setup.zsh  # 激活环境变量
 ```
 
 2. git文件保存
-在 ~/{$FILE_NAME} 下创建.gitignore文件，忽略编译文件夹来保证每次上传的仅为工作文件
+在 ~/${FILE_NAME} 下创建.gitignore文件，忽略编译文件夹来保证每次上传的仅为工作文件
 ```text
 # .gitignore
 build/
